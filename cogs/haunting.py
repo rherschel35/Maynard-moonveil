@@ -3,12 +3,9 @@ Passive presence: Maynard noticing things without being asked.
 
 - No unprompted chatter: he only ever speaks in response to a real message
   from someone in the channel.
-- Keyword reactions tuned to Maynard - research, hypotheses, "what if",
-  pranks, chaos, puns. Chosen so they don't overlap the other ghosts' words:
-  Cassy already answers to "experiment", and two ghosts replying to the same
-  message would be exactly the pile-up the channel doesn't need.
-- Whole-word matching, so "pun" doesn't fire on "punch" or "math" on
-  "aftermath".
+- Only three trigger words: his name, "what if" and "prank" - kept short
+  so the ghosts don't pile onto the channel. None overlap the other ghosts'.
+- Whole-word matching, so "prank" doesn't fire inside other words.
 - Remembering what members say, and condensing recent activity into running
   notes about what's going on in the server.
 - Extra attention on anyone he's been asked to /watch.
@@ -40,22 +37,12 @@ def _parse_channel_ids(env_value: str | None):
     return ids or None
 
 
-# keyword -> (chance of reacting, cue). Most always fire; the tournament
-# only sometimes, because it's the one subject that hurts, and the server
-# talks about it constantly.
+# keyword -> (chance of reacting, cue). Just his name and two words that are
+# unmistakably him. (The tournament belongs to Sebastian now.)
 KEYWORD_TRIGGERS = {
     "maynard": (1.0, "Someone said your name. React with delight at being noticed - a pun wouldn't go amiss."),
-    "moonveil": (1.0, "Someone mentioned House Moonveil, your house. React with fond, slightly smug pride."),
-    "research": (1.0, "Someone mentioned research. That's practically your religion - react with scholarly glee and ask what they're investigating."),
-    "hypothesis": (1.0, "Someone mentioned a hypothesis. React like a scientist handed a gift - ask how they plan to test it."),
-    "theory": (1.0, "Someone mentioned a theory. Take it seriously and a little mischievously - how would one test it?"),
     "what if": (1.0, "Someone asked 'what if'. That is THE question - the one your entire life ran on. Pounce on it with delight and push it one step further."),
     "prank": (1.0, "Someone mentioned a prank. React as the school's foremost authority on the subject - appreciative, critiquing their methodology. Keep it harmless."),
-    "chaos": (1.0, "Someone mentioned chaos. Controlled chaos is your field of expertise - react like a proud specialist."),
-    "pun": (1.0, "Someone mentioned puns. Respond with one, naturally - ideally one only you find funny."),
-    "math": (1.0, "Someone mentioned maths. React with a joke so arithmetic that you're the only one who'll laugh at it."),
-    "science": (1.0, "Someone mentioned science. React with genuine enthusiasm - science is just curiosity with better notes."),
-    "tournament": (0.25, "Someone mentioned the tournament. This is the one subject that stops you cold. React briefly and quietly - a line, no joke, no deflection into cleverness - then let it go. Do not explain the whole story unless asked."),
 }
 
 _KEYWORD_PATTERNS = {
@@ -193,7 +180,7 @@ class Haunting(commands.Cog):
                 f'said: "{content}". Remark on it like a delighted researcher noting a data point. '
                 "Warm, never creepy."
             )
-        elif random.random() < 0.03:
+        elif random.random() < 0.01:
             cue = f'Someone said: "{content}". React to it in passing, briefly, as an aside.'
 
         if not cue:
