@@ -1,5 +1,5 @@
 """
-Maynard Moonveil - founder of House Moonveil, scientist of controlled chaos,
+Maynard Moonveil - founder of House Moonveil, the castle's most gleeful agent of chaos,
 and the ghost who designed the tournament. Entry point: wires up the client
 and loads cogs. He only ever speaks in response to someone, and he never
 talks to the other ghosts.
