@@ -2,8 +2,8 @@
 Slash commands for talking to Maynard directly:
 
 - /ask <question>   - ask Maynard something
-- /watch <member>   - he takes a particular interest in someone, as a study
-- /experiment       - an entry from his old research journals
+- /watch <member>   - he picks someone as his next target for harmless mischief
+- /experiment       - an entry from his old journals of (alleged) experiments
 - /mood             - (admin) peek at his current mood
 
 There is no /interact. Maynard doesn't talk to the other ghosts.
@@ -57,7 +57,7 @@ class GhostCommands(commands.Cog):
         memory_hint = prior[0] if prior else None
 
         cue = (
-            f'{asker} asks you directly: "{question}". Answer as yourself - curious, delighted to be '
+            f'{asker}{" (a headmaster)" if any(r.id == 1542569502653550705 for r in getattr(interaction.user, "roles", [])) else ""} asks you directly: "{question}". Answer as yourself - curious, delighted to be '
             "asked, and genuinely engaged with what they actually asked."
         )
         line = await personality.speak(cue, memory_hint=memory_hint, max_tokens=220)
@@ -67,7 +67,7 @@ class GhostCommands(commands.Cog):
         await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="watch", description="Ask Maynard to take a particular interest in someone.")
-    @app_commands.describe(member="Who should he observe?")
+    @app_commands.describe(member="Who should he pick on (harmlessly)?")
     async def watch(self, interaction: discord.Interaction, member: discord.Member):
         personality = self._personality()
         if not personality:
@@ -75,7 +75,7 @@ class GhostCommands(commands.Cog):
             return
         if member.bot:
             await interaction.response.send_message(
-                "He keeps to the students. The other spirits are not part of this study.", ephemeral=True
+                "He keeps to the students. The other spirits are off-limits, even for him.", ephemeral=True
             )
             return
 
@@ -83,16 +83,16 @@ class GhostCommands(commands.Cog):
 
         cue = (
             f"You've just been asked to take a particular interest in {member.display_name} for a while - "
-            "to observe them as a subject in one of your studies. Announce it in character: delighted, "
-            "affectionate, a scientist with a promising new specimen. Warm, never ominous."
+            "to make them your new accomplice or target for harmless mischief. Announce it in character: gleeful, "
+            "scheming, affectionate, hinting at chaos to come. Playful, never ominous or mean."
         )
         line = await personality.speak(cue, max_tokens=150)
 
         embed = discord.Embed(description=line, color=0x8B5FBF)
-        embed.set_footer(text=f"{member.display_name} is now under observation.")
+        embed.set_footer(text=f"{member.display_name} is now on Maynard's list.")
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="experiment", description="Hear an entry from Maynard's old research journals.")
+    @app_commands.command(name="experiment", description="Hear an entry from Maynard's old journals of mischief.")
     async def experiment(self, interaction: discord.Interaction):
         personality = self._personality()
         if not personality:
@@ -113,7 +113,8 @@ class GhostCommands(commands.Cog):
             return
 
         cue = (
-            "Tell whoever's listening about this entry from your old research journals, in your own voice - "
+            "Tell whoever's listening about this entry from your old journals, in your own voice - as a gleeful story "
+            "of the mayhem, not a lab report - "
             f'not verbatim, but true to it: "{fragment}"'
         )
         line = await personality.speak(cue, max_tokens=220)

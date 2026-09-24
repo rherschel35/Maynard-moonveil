@@ -3,8 +3,12 @@ Passive presence: Maynard noticing things without being asked.
 
 - No unprompted chatter: he only ever speaks in response to a real message
   from someone in the channel.
-- Only three trigger words: his name, "what if" and "prank" - kept short
-  so the ghosts don't pile onto the channel. None overlap the other ghosts'.
+- Only three trigger words: his name (always answered), and "what if" and
+  "prank" (about 1 in 4 times). None overlap the other ghosts'.
+- After anything he says unasked, he stays quiet in that channel for 10
+  minutes. His name, @mentions and replies to him are always answered.
+- Headmasters (HEADMASTERS role) are tagged so he knows who they are -
+  they're his favourite targets for playful mischief.
 - Whole-word matching, so "prank" doesn't fire inside other words.
 - Remembering what members say, and condensing recent activity into running
   notes about what's going on in the server.
@@ -19,6 +23,7 @@ import logging
 import os
 import random
 import re
+import time
 
 import discord
 from discord.ext import commands
@@ -37,12 +42,35 @@ def _parse_channel_ids(env_value: str | None):
     return ids or None
 
 
+# How often he butts into an ordinary message, unasked, just to stir things up.
+RANDOM_CHAOS_CHANCE = 0.005
+# How often he comments on a message from someone he's /watch-ing.
+WATCH_CHANCE = 0.15
+# After any line nobody asked for, he stays quiet in that channel this long.
+# (His name, @mentions and replies to him are always answered regardless.)
+CHIME_COOLDOWN_SECONDS = int(os.getenv("CHIME_COOLDOWN_SECONDS", "600"))
+
+# Members with this role are headmasters - his favourite targets.
+HEADMASTER_ROLE_ID = int(os.getenv("HEADMASTER_ROLE_ID", "1542569502653550705") or 0)
+
+
+def is_headmaster(member) -> bool:
+    for role in getattr(member, "roles", None) or []:
+        if role.id == HEADMASTER_ROLE_ID or (role.name or "").strip().lower() == "headmasters":
+            return True
+    return False
+
+
+def speaker_label(member) -> str:
+    name = str(member.display_name)
+    return f"{name} (a headmaster)" if is_headmaster(member) else name
+
 # keyword -> (chance of reacting, cue). Just his name and two words that are
 # unmistakably him. (The tournament belongs to Sebastian now.)
 KEYWORD_TRIGGERS = {
-    "maynard": (1.0, "Someone said your name. React with delight at being noticed - a pun wouldn't go amiss."),
-    "what if": (1.0, "Someone asked 'what if'. That is THE question - the one your entire life ran on. Pounce on it with delight and push it one step further."),
-    "prank": (1.0, "Someone mentioned a prank. React as the school's foremost authority on the subject - appreciative, critiquing their methodology. Keep it harmless."),
+    "maynard": (1.0, "Someone said your name. Burst in with chaotic delight at being summoned - a dramatic entrance, a scheme, or a terrible pun."),
+    "what if": (0.25, "Someone asked 'what if'. That is THE question - the one your entire life ran on. Pounce on it and push it three steps too far, into gloriously ridiculous territory."),
+    "prank": (0.25, "Someone mentioned a prank. React as the school's undisputed prank legend - thrilled, egging them on, and pitching a bigger, sillier version - bonus delight if a headmaster is the target. Keep it harmless and kind."),
 }
 
 _KEYWORD_PATTERNS = {
@@ -65,6 +93,10 @@ class Haunting(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.allowed_channel_ids = _parse_channel_ids(os.getenv("HAUNT_CHANNEL_IDS"))
+        self._last_chime = {}  # channel_id -> when he last spoke unasked there
+
+    def _chime_ready(self, channel_id: int) -> bool:
+        return time.time() - self._last_chime.get(channel_id, 0) >= CHIME_COOLDOWN_SECONDS
 
     async def _write_notes_safely(self, personality):
         try:
@@ -106,7 +138,7 @@ class Haunting(commands.Cog):
         if not (replying_to_me or mentioned):
             return False
 
-        author_name = str(message.author.display_name)
+        author_name = speaker_label(message.author)
         asked = re.sub(r"<@!?&?\d+>", "", message.content or "").strip()
         if not asked:
             return False
@@ -119,7 +151,7 @@ class Haunting(commands.Cog):
             if msg.author.id == me.id:
                 history.append({"role": "assistant", "content": text})
             else:
-                history.append({"role": "user", "content": f"{msg.author.display_name}: {text}"})
+                history.append({"role": "user", "content": f"{speaker_label(msg.author)}: {text}"})
 
         if replying_to_me:
             direction = (
@@ -157,10 +189,11 @@ class Haunting(commands.Cog):
         personality.maybe_shift_mood()
 
         content = message.content or ""
-        author_name = str(message.author.display_name)
+        plain_name = str(message.author.display_name)   # what memory is keyed on
+        author_name = speaker_label(message.author)      # what the prompt sees
 
         if len(content.strip()) >= 12:
-            if personality.remember(author_name, content, message.channel.id):
+            if personality.remember(plain_name, content, message.channel.id):
                 asyncio.create_task(self._write_notes_safely(personality))
 
         if await self._maybe_answer_direct_address(message, personality):
@@ -170,26 +203,37 @@ class Haunting(commands.Cog):
         haunted = personality.is_haunted(message.author.id)
 
         cue = None
-        if matched_cue:
-            cue = f'{matched_cue} They said: "{content}"'
+        unasked = True
+        if keyword == "maynard" and matched_cue:
+            unasked = False   # called by name: always answers, cooldown or not
+            cue = f'{matched_cue} {author_name} said: "{content}"'
+        elif not self._chime_ready(message.channel.id):
+            return   # he spoke up unasked here recently - let the channel breathe
+        elif matched_cue:
+            cue = f'{matched_cue} {author_name} said: "{content}"'
         elif keyword:
             return   # a keyword he chose to let pass - don't fall through to a random aside
-        elif haunted and random.random() < 0.35:
+        elif haunted and random.random() < WATCH_CHANCE:
             cue = (
-                f"You're currently observing {author_name} - a subject in one of your studies. They just "
-                f'said: "{content}". Remark on it like a delighted researcher noting a data point. '
-                "Warm, never creepy."
+                f"You've picked {author_name} as your current favourite target for harmless mischief. They just "
+                f'said: "{content}". Pop in with something chaotic about it - a tease, a scheme, a wild idea. '
+                "Playful and affectionate, never mean or creepy."
             )
-        elif random.random() < 0.01:
-            cue = f'Someone said: "{content}". React to it in passing, briefly, as an aside.'
+        elif random.random() < RANDOM_CHAOS_CHANCE:
+            cue = (
+                f'Someone said: "{content}". Nobody asked you, which has never once stopped you. Butt in '
+                "with a quick burst of harmless chaos - a wild suggestion, a dramatic overreaction, or a pun."
+            )
 
         if not cue:
             return
+        if unasked:
+            self._last_chime[message.channel.id] = time.time()
 
         async with message.channel.typing():
             memory_hint = None
             if random.random() < 0.3:
-                memory_hint = personality.random_memory(exclude_author=author_name)
+                memory_hint = personality.random_memory(exclude_author=plain_name)
             line = await personality.speak(cue, memory_hint=memory_hint)
         try:
             await message.channel.send(line)
