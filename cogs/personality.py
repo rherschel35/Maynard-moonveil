@@ -312,8 +312,10 @@ class Personality(DiaryMixin, commands.Cog):
         return self.state.get("mood", "gleeful")
 
     def maybe_shift_mood(self, force: bool = False):
-        """Occasionally drift the ghost's mood. Self-throttles to roughly one
-        shift every couple of hours."""
+        """Occasionally drift the ghost's mood while people are talking.
+
+        Shifts wait about two hours, so a busy channel keeps one mood for a while.
+        """
         age = time.time() - self.state.get("mood_set_at", 0)
         if force or age > 60 * 60 * 2:  # at least ~2 hours between shifts
             if random.random() < 0.5 or force:
@@ -501,9 +503,9 @@ class Personality(DiaryMixin, commands.Cog):
     ) -> str:
         """Generate an in-character line from the ghost.
 
-        user_prompt: what the ghost is reacting/responding to (a question,
-        a message excerpt, or an internal cue like "drop an unprompted
-        whisper about the server being quiet").
+        user_prompt: what the ghost is reacting to (a question, a message
+        excerpt, or a cue such as his name or a keyword that just caught
+        his attention).
         memory_hint: an optional remembered {"author", "content"} dict to
         weave in, so the ghost seems to actually recall things.
         history: prior turns of a real exchange, as [{"role", "content"}],

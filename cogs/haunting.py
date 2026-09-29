@@ -186,6 +186,8 @@ class Haunting(commands.Cog):
         personality = self.bot.get_cog("Personality")
         if not personality:
             return
+
+        # Drift the mood as people talk. Shifts wait about two hours.
         personality.maybe_shift_mood()
 
         content = message.content or ""
